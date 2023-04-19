@@ -76,24 +76,4 @@ contract MetaFactory is Ownable {
         BlpToken newBlp = new BlpToken(_initialBlpPrice, _initialJoyReserve, _initialBlpMint, _master_address);
         pools[_poolId].blpToken = address(newBlp);
     }
-
-    function getBlpAddressByPoolId(uint256 _poolId) external view returns (address) {
-        require(_poolId < pools.length, "Invalid pool ID");
-        return pools[_poolId].blpToken;
-    }
-
-    function getPoolNameById(uint256 _poolId) external view returns (string memory) {
-        require(_poolId < pools.length, "Invalid pool ID");
-        return pools[_poolId].name;
-    }
-
-    function getPoolBalanceById(uint256 _poolId) external view returns (uint256) {
-        require(_poolId < pools.length, "Invalid pool ID");
-        return pools[_poolId].balance;
-    }
-
-    function getPoolStatusById(uint256 _poolId) external view returns (PoolStatus) {
-        require(_poolId < pools.length, "Invalid pool ID");
-        return pools[_poolId].status;
-    }
 }
