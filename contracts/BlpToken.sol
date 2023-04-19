@@ -35,7 +35,7 @@ contract BlpToken is ERC20, Ownable {
     function enableTransfer() public onlyOwnerOrMaster {
         transferEnabled = true;
     }
-
+    // mintBlp need to be executed in the next block
     function mintBlp(uint256 joyAmount) public {
         require(joyToken.balanceOf(msg.sender) >= joyAmount, "Insufficient Joy balance");
         // reduce platformfee first
