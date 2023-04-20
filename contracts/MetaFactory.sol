@@ -3,16 +3,17 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Create2.sol";
 import "./BlpToken.sol"; // Import the BLPToken contract interface
 
 contract MetaFactory is Ownable {
+    using Create2 for bytes32;
     enum PoolStatus { FUNDING, COMPLETED, CANCELLED }
 
     struct Pool {
         string name;
         PoolStatus status;
         uint256 balance;
-        address blpToken; // Add the BLP token contract address to the Pool struct
     }
 
     struct Contribution {
@@ -30,7 +31,7 @@ contract MetaFactory is Ownable {
     }
 
     function createPool(string calldata _name) external onlyOwner {
-        pools.push(Pool({name: _name, status: PoolStatus.FUNDING, balance: 0, blpToken: address(0)}));
+        pools.push(Pool({name: _name, status: PoolStatus.FUNDING, balance: 0}));
     }
 
     function contributeToPool(uint256 _poolId, uint256 _amount) external {
@@ -72,8 +73,17 @@ contract MetaFactory is Ownable {
         require(pools[_poolId].status == PoolStatus.FUNDING, "Pool is not in funding status");
 
         pools[_poolId].status = PoolStatus.COMPLETED;
-        // Create a new BLP token contract and save its address in the Pool struct
-        BlpToken newBlp = new BlpToken(_initialBlpPrice, _initialJoyReserve, _initialBlpMint, _master_address);
-        pools[_poolId].blpToken = address(newBlp);
+
+        bytes32 salt = keccak256(abi.encodePacked(_poolId, pools[_poolId].name));
+        address blpToken = address(
+            Create2.deploy(0, salt, type(BlpToken).creationCode)
+        );
+
+        BlpToken(blpToken).initialize(
+            _initialBlpPrice,
+            _initialJoyReserve,
+            _initialBlpMint,
+            _master_address
+        );
     }
 }

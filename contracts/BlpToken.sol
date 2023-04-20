@@ -11,19 +11,29 @@ contract BlpToken is ERC20, Ownable {
     uint256 public initialReserve;
     bool public transferEnabled;
     address private master;
+    bool private emergencyPaused;
+    bool public initialized;
 
-    constructor(
+    constructor() ERC20("BlpToken", "BLP") {
+        initialized = false;
+    }
+
+    function initialize(
         uint256 _initialBlpPrice,
         uint256 _initialJoyReserve,
         uint256 _initialBlpMint,
         address _master
-    ) ERC20("BlpToken", "BLP") {
+    ) public {
+        require(!initialized, "Already initialized");
+        require(joyToken.transferFrom(msg.sender, address(this), _initialJoyReserve), "Initial JoyToken transfer failed");
+        initialized = true;
+        
         k_inverse = 3   ; // initial k is 1/3
         initialBlpPrice = _initialBlpPrice;
         transferEnabled = false;
         master = _master;
+        emergencyPaused = false;
         // Transfer the initial JoyToken reserve from the creator to the contract
-        require(joyToken.transferFrom(msg.sender, address(this), _initialJoyReserve), "Initial JoyToken transfer failed");
         _mint(msg.sender, _initialBlpMint);
     }
 
@@ -38,6 +48,7 @@ contract BlpToken is ERC20, Ownable {
     // mintBlp need to be executed in the next block
     function mintBlp(uint256 joyAmount) public {
         require(joyToken.balanceOf(msg.sender) >= joyAmount, "Insufficient Joy balance");
+        require(!emergencyPaused, "Minting is paused due to emergency");
         // reduce platformfee first
         uint256 R0 = this.getJoyTokenBalance();
         uint256 S0 = this.getTotalSupply();
@@ -51,6 +62,7 @@ contract BlpToken is ERC20, Ownable {
 
     function burnBlp(uint256 blpAmount) public {
         require(balanceOf(msg.sender) >= blpAmount, "Insufficient BLP balance");
+        require(!emergencyPaused, "Burning is paused due to emergency");
         uint256 R0 = this.getJoyTokenBalance();
         uint256 S0 = this.getTotalSupply();
         uint256 joyAmount = R0 * ((1 + blpAmount / S0)**(k_inverse) - 1);
@@ -84,4 +96,11 @@ contract BlpToken is ERC20, Ownable {
         return totalSupply();
     }
 
+    function pauseEmergency() public onlyOwner {
+        emergencyPaused = true;
+    }
+
+    function resumeFromEmergency() public onlyOwner {
+        emergencyPaused = false;
+    }
 }
