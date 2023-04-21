@@ -95,6 +95,18 @@ contract MetaFactory is Ownable {
         require(_poolId < pools.length, "Invalid pool ID");
         require(pools[_poolId].status == PoolStatus.FUNDING, "Pool is not in funding status");
 
+        // Deduct joy from each participant's contribution in the pool
+        for (uint256 i = 0; i < numParticipants; i++) {
+            require(poolContributions[_poolId][i].amount >= joyPerParticipant, "Insufficient joy in pool contribution");
+            
+            // Update the pool's balance and ensure it doesn't go below 0
+            if (pools[_poolId].balance >= joyPerParticipant) {
+                pools[_poolId].balance -= joyPerParticipant;
+            } else {
+                pools[_poolId].balance = 0;
+            }
+        }
+
         pools[_poolId].status = PoolStatus.COMPLETED;
 
         bytes32 salt = keccak256(abi.encodePacked(_poolId, pools[_poolId].name));
@@ -108,17 +120,5 @@ contract MetaFactory is Ownable {
             _initialBlpMint,
             _master_address
         );
-
-        // Deduct joy from each participant's contribution in the pool
-        for (uint256 i = 0; i < numParticipants; i++) {
-            require(poolContributions[_poolId][i].amount >= joyPerParticipant, "Insufficient joy in pool contribution");
-            
-            // Update the pool's balance and ensure it doesn't go below 0
-            if (pools[_poolId].balance >= joyPerParticipant) {
-                pools[_poolId].balance -= joyPerParticipant;
-            } else {
-                pools[_poolId].balance = 0;
-            }
-        }
     }
 }
