@@ -4,6 +4,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "./BlpToken.sol"; // Import the BLPToken contract interface
 
 contract MetaFactory is Ownable {
@@ -14,6 +15,7 @@ contract MetaFactory is Ownable {
         string name;
         PoolStatus status;
         uint256 balance;
+        bytes32 merkleRoot;
     }
 
     struct Contribution {
@@ -30,13 +32,27 @@ contract MetaFactory is Ownable {
         joyToken = _joyToken;
     }
 
-    function createPool(string calldata _name) external onlyOwner {
-        pools.push(Pool({name: _name, status: PoolStatus.FUNDING, balance: 0}));
+    function createPool(string calldata _name, bytes32 _merkleRoot) external onlyOwner {
+        pools.push(Pool({name: _name, status: PoolStatus.FUNDING, balance: 0, bytes32 _merkleRoot}));
     }
 
-    function contributeToPool(uint256 _poolId, uint256 _amount) external {
+    function contributeToPool(
+        uint256 _poolId,
+        uint256 _amount,
+        bytes32[] calldata _merkleProof
+    ) external {
         require(_poolId < pools.length, "Invalid pool ID");
-        require(pools[_poolId].status == PoolStatus.FUNDING, "Pool is not in funding status");
+        require(
+            pools[_poolId].status == PoolStatus.CANCELLED || pools[_poolId].status == PoolStatus.COMPLETED,
+            "Pool is not cancelled or completed"
+        );
+
+        // Verify the user's Merkle proof
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
+        require(
+            MerkleProof.verify(_merkleProof, pools[_poolId].merkleRoot, leaf),
+            "Not in the whitelist"
+        );
 
         joyToken.transferFrom(msg.sender, address(this), _amount);
 
@@ -44,11 +60,12 @@ contract MetaFactory is Ownable {
         poolContributions[_poolId].push(Contribution(msg.sender, _amount, block.timestamp));
     }
 
+
     function setPoolStatus(uint256 _poolId, PoolStatus _status) external onlyOwner {
         require(_poolId < pools.length, "Invalid pool ID");
         pools[_poolId].status = _status;
     }
-    
+
     function claimPoolContribution(uint256 _poolId) external {
         require(_poolId < pools.length, "Invalid pool ID");
         require(pools[_poolId].status == PoolStatus.CANCELLED, "Pool is not cancelled");
@@ -91,5 +108,17 @@ contract MetaFactory is Ownable {
             _initialBlpMint,
             _master_address
         );
+
+        // Deduct joy from each participant's contribution in the pool
+        for (uint256 i = 0; i < numParticipants; i++) {
+            require(poolContributions[_poolId][i].amount >= joyPerParticipant, "Insufficient joy in pool contribution");
+            
+            // Update the pool's balance and ensure it doesn't go below 0
+            if (pools[_poolId].balance >= joyPerParticipant) {
+                pools[_poolId].balance -= joyPerParticipant;
+            } else {
+                pools[_poolId].balance = 0;
+            }
+        }
     }
 }
