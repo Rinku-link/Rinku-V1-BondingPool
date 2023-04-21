@@ -33,7 +33,7 @@ contract MetaFactory is Ownable {
     }
 
     function createPool(string calldata _name, bytes32 _merkleRoot) external onlyOwner {
-        pools.push(Pool({name: _name, status: PoolStatus.FUNDING, balance: 0, bytes32 _merkleRoot}));
+        pools.push(Pool({name: _name, status: PoolStatus.FUNDING, balance: 0, merkleRoot: _merkleRoot}));
     }
 
     function contributeToPool(
@@ -99,6 +99,9 @@ contract MetaFactory is Ownable {
         require(_poolId < pools.length, "Invalid pool ID");
         require(pools[_poolId].status == PoolStatus.FUNDING, "Pool is not in funding status");
 
+        uint256 numParticipants = poolContributions[_poolId].length;
+        uint256 joyPerParticipant = _initialJoyReserve / numParticipants;
+        
         // Deduct joy from each participant's contribution in the pool
         for (uint256 i = 0; i < numParticipants; i++) {
             require(poolContributions[_poolId][i].amount >= joyPerParticipant, "Insufficient joy in pool contribution");
