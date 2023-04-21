@@ -60,6 +60,10 @@ contract MetaFactory is Ownable {
         poolContributions[_poolId].push(Contribution(msg.sender, _amount, block.timestamp));
     }
 
+    function setMerkleRoot(uint256 _poolId, bytes32 _newMerkleRoot) external onlyOwner {
+        require(_poolId < pools.length, "Invalid pool ID");
+        pools[_poolId].merkleRoot = _newMerkleRoot;
+    }
 
     function setPoolStatus(uint256 _poolId, PoolStatus _status) external onlyOwner {
         require(_poolId < pools.length, "Invalid pool ID");
