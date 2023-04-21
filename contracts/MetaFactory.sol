@@ -48,18 +48,24 @@ contract MetaFactory is Ownable {
         require(_poolId < pools.length, "Invalid pool ID");
         pools[_poolId].status = _status;
     }
-
-    function refundPoolContributions(uint256 _poolId) external onlyOwner {
+    
+    function claimPoolContribution(uint256 _poolId) external {
         require(_poolId < pools.length, "Invalid pool ID");
         require(pools[_poolId].status == PoolStatus.CANCELLED, "Pool is not cancelled");
 
+        uint256 refundAmount = 0;
         Contribution[] storage contributions = poolContributions[_poolId];
         for (uint256 i = 0; i < contributions.length; i++) {
-            joyToken.transfer(contributions[i].user, contributions[i].amount);
+            if (contributions[i].user == msg.sender) {
+                refundAmount = contributions[i].amount;
+                delete contributions[i];
+                break;
+            }
         }
-
-        delete poolContributions[_poolId];
-        pools[_poolId].balance = 0;
+        
+        require(refundAmount > 0, "No contribution found or already claimed");
+        pools[_poolId].balance -= refundAmount;
+        joyToken.transfer(msg.sender, refundAmount);
     }
 
     function completePool(
