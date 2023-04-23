@@ -18,15 +18,10 @@ contract MetaFactory is Ownable {
         bytes32 merkleRoot;
     }
 
-    struct Contribution {
-        address user;
-        uint256 amount;
-        uint256 timestamp;
-    }
-
     IERC20 public joyToken;
     Pool[] public pools;
-    mapping(uint256 => Contribution[]) public poolContributions;
+    mapping(uint256 => address[]) public addressIndices;
+    mapping(uint256 => mapping(address => uint256)) public poolContributions;
 
     constructor(IERC20 _joyToken) {
         joyToken = _joyToken;
@@ -54,10 +49,26 @@ contract MetaFactory is Ownable {
             "Not in the whitelist"
         );
 
+        // verify address has enough joy token
+        require(joyToken.balanceOf(msg.sender) >= _amount, "Insufficient Joy balance");
         joyToken.transferFrom(msg.sender, address(this), _amount);
 
         pools[_poolId].balance += _amount;
-        poolContributions[_poolId].push(Contribution(msg.sender, _amount, block.timestamp));
+        poolContributions[_poolId][msg.sender] += _amount;
+
+        // Check if the participant's address is already in addressIndices
+        bool isAddressPresent = false;
+        for (uint256 i = 0; i < addressIndices[_poolId].length; i++) {
+            if (addressIndices[_poolId][i] == msg.sender) {
+                isAddressPresent = true;
+                break;
+            }
+        }
+
+        // If the participant's address is not present in addressIndices, add it
+        if (!isAddressPresent) {
+            addressIndices[_poolId].push(msg.sender);
+        }
     }
 
     function setMerkleRoot(uint256 _poolId, bytes32 _newMerkleRoot) external onlyOwner {
@@ -72,19 +83,13 @@ contract MetaFactory is Ownable {
 
     function claimPoolContribution(uint256 _poolId) external {
         require(_poolId < pools.length, "Invalid pool ID");
-        require(pools[_poolId].status == PoolStatus.CANCELLED, "Pool is not cancelled");
-
-        uint256 refundAmount = 0;
-        Contribution[] storage contributions = poolContributions[_poolId];
-        for (uint256 i = 0; i < contributions.length; i++) {
-            if (contributions[i].user == msg.sender) {
-                refundAmount = contributions[i].amount;
-                delete contributions[i];
-                break;
-            }
-        }
-        
+        require(
+            pools[_poolId].status == PoolStatus.CANCELLED || pools[_poolId].status == PoolStatus.COMPLETED,
+            "Pool is not cancelled or completed"
+        );
+        uint256 refundAmount = poolContributions[_poolId][msg.sender];
         require(refundAmount > 0, "No contribution found or already claimed");
+        poolContributions[_poolId][msg.sender] = 0;
         pools[_poolId].balance -= refundAmount;
         joyToken.transfer(msg.sender, refundAmount);
     }
@@ -99,13 +104,27 @@ contract MetaFactory is Ownable {
         require(_poolId < pools.length, "Invalid pool ID");
         require(pools[_poolId].status == PoolStatus.FUNDING, "Pool is not in funding status");
 
-        uint256 numParticipants = poolContributions[_poolId].length;
-        uint256 joyPerParticipant = _initialJoyReserve / numParticipants;
-        
+        uint256 numParticipants = addressIndices[_poolId].length;
+        uint256 joyPerParticipant = _initialJoyReserve / numParticipants;        
+        address[] memory _participantAddresses = new address[](numParticipants);
+        uint256[] memory _participantBalances = new uint256[](numParticipants);
+
         // Deduct joy from each participant's contribution in the pool
         for (uint256 i = 0; i < numParticipants; i++) {
-            require(poolContributions[_poolId][i].amount >= joyPerParticipant, "Insufficient joy in pool contribution");
+            address participantAddress = addressIndices[_poolId][i];
+            uint256 participantBalance = poolContributions[_poolId][participantAddress];
+    
+            require(poolContributions[_poolId][participantAddress] >= joyPerParticipant, "Insufficient joy in pool contribution");
             
+            _participantAddresses[i] = participantAddress;
+            if (poolContributions[_poolId][participantAddress] >= joyPerParticipant) {
+                _participantBalances[i] = joyPerParticipant;
+                poolContributions[_poolId][participantAddress] -= joyPerParticipant;
+            } else {
+                _participantBalances[i] = poolContributions[_poolId][participantAddress];
+                poolContributions[_poolId][participantAddress] = 0;
+            }
+
             // Update the pool's balance and ensure it doesn't go below 0
             if (pools[_poolId].balance >= joyPerParticipant) {
                 pools[_poolId].balance -= joyPerParticipant;
@@ -113,6 +132,8 @@ contract MetaFactory is Ownable {
                 pools[_poolId].balance = 0;
             }
         }
+
+        // add revenue sharing based on pool balance
 
         pools[_poolId].status = PoolStatus.COMPLETED;
 
@@ -125,6 +146,8 @@ contract MetaFactory is Ownable {
             _initialBlpPrice,
             _initialJoyReserve,
             _initialBlpMint,
+            _participantAddresses,
+            _participantBalances,
             _master_address
         );
     }

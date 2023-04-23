@@ -13,6 +13,7 @@ contract BlpToken is ERC20, Ownable {
     address private master;
     bool private emergencyPaused;
     bool public initialized;
+    mapping(address => uint256) public participantBalances;
 
     constructor() ERC20("BlpToken", "BLP") {
         initialized = false;
@@ -22,10 +23,14 @@ contract BlpToken is ERC20, Ownable {
         uint256 _initialBlpPrice,
         uint256 _initialJoyReserve,
         uint256 _initialBlpMint,
+        address[] memory participantAddresses,
+        uint256[] memory participantBalances_,
         address _master
     ) public {
         require(!initialized, "Already initialized");
         require(joyToken.transferFrom(msg.sender, address(this), _initialJoyReserve), "Initial JoyToken transfer failed");
+        require(participantAddresses.length == participantBalances_.length, "Mismatch in participant addresses and balances length");
+
         initialized = true;
         
         k_inverse = 3   ; // initial k is 1/3
@@ -35,6 +40,10 @@ contract BlpToken is ERC20, Ownable {
         emergencyPaused = false;
         // Transfer the initial JoyToken reserve from the creator to the contract
         _mint(msg.sender, _initialBlpMint);
+
+        for (uint256 i = 0; i < participantAddresses.length; i++) {
+            participantBalances[participantAddresses[i]] = participantBalances_[i];
+        }
     }
 
     modifier onlyOwnerOrMaster() {
