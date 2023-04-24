@@ -13,16 +13,18 @@ contract BlpToken is ERC20, Ownable {
     address private master;
     bool private emergencyPaused;
     bool public initialized;
-    mapping(address => uint256) public participantBalances;
-    address[] public participantAddresses;
+    mapping(address => uint256) private participantBalances;
+    address[] private participantAddresses;
     uint256 public totalPlatformFees;
     uint256 public lastDistributionTime;
+    mapping(address => uint256) private pendingPlatformFees;
 
     constructor() ERC20("BlpToken", "BLP") {
         initialized = false;
     }
 
     function initialize(
+        address _joyToken,
         uint256 _initialBlpPrice,
         uint256 _initialJoyReserve,
         uint256 _initialBlpMint,
@@ -36,6 +38,7 @@ contract BlpToken is ERC20, Ownable {
 
         initialized = true;
         lastDistributionTime = block.timestamp;
+        joyToken = IERC20(_joyToken);
         
         k_inverse = 3   ; // initial k is 1/3
         initialBlpPrice = _initialBlpPrice;
@@ -110,12 +113,20 @@ contract BlpToken is ERC20, Ownable {
         for (uint256 i = 0; i < participantAddresses.length; i++) {
             uint256 participantShare = (participantBalances[participantAddresses[i]] * feesToDistribute) / totalParticipantBalances;
             // Transfer the fee share to the participant
+            pendingPlatformFees[participantAddresses[i]] += participantShare;
         }
 
         totalPlatformFees -= feesToDistribute;
         lastDistributionTime = block.timestamp;
     }
 
+    function claimPlatformFees() public {
+        uint256 feesToClaim = pendingPlatformFees[msg.sender];
+        require(feesToClaim > 0, "No platform fees to claim");
+
+        pendingPlatformFees[msg.sender] = 0;
+        require(joyToken.transfer(msg.sender, feesToClaim), "JoyToken transfer failed");
+    }
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
         super._beforeTokenTransfer(from, to, amount);
@@ -130,11 +141,23 @@ contract BlpToken is ERC20, Ownable {
         return totalSupply();
     }
 
-    function pauseEmergency() public onlyOwner {
+    function pauseEmergency() public onlyOwnerOrMaster {
         emergencyPaused = true;
     }
 
-    function resumeFromEmergency() public onlyOwner {
+    function resumeFromEmergency() public onlyOwnerOrMaster {
         emergencyPaused = false;
+    }
+
+    function getPendingPlatformFees() public view returns (uint256) {
+        return pendingPlatformFees[msg.sender];
+    }
+
+    function getParticipantBalance() public view returns (uint256) {
+        return participantBalances[msg.sender];
+    }
+
+    function getParticipantAddresses() public view onlyOwnerOrMaster returns (address[] memory) {
+        return participantAddresses;
     }
 }
