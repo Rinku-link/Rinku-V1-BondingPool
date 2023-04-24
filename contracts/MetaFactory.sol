@@ -143,6 +143,7 @@ contract MetaFactory is Ownable {
         );
 
         BlpToken(blpToken).initialize(
+            address(joyToken),
             _initialBlpPrice,
             _initialJoyReserve,
             _initialBlpMint,
