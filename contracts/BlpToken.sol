@@ -14,6 +14,9 @@ contract BlpToken is ERC20, Ownable {
     bool private emergencyPaused;
     bool public initialized;
     mapping(address => uint256) public participantBalances;
+    address[] public participantAddresses;
+    uint256 public totalPlatformFees;
+    uint256 public lastDistributionTime;
 
     constructor() ERC20("BlpToken", "BLP") {
         initialized = false;
@@ -23,27 +26,30 @@ contract BlpToken is ERC20, Ownable {
         uint256 _initialBlpPrice,
         uint256 _initialJoyReserve,
         uint256 _initialBlpMint,
-        address[] memory participantAddresses,
-        uint256[] memory participantBalances_,
+        address[] memory _participantAddresses,
+        uint256[] memory _participantBalances,
         address _master
     ) public {
         require(!initialized, "Already initialized");
         require(joyToken.transferFrom(msg.sender, address(this), _initialJoyReserve), "Initial JoyToken transfer failed");
-        require(participantAddresses.length == participantBalances_.length, "Mismatch in participant addresses and balances length");
+        require(participantAddresses.length == _participantAddresses.length, "Mismatch in participant addresses and balances length");
 
         initialized = true;
+        lastDistributionTime = block.timestamp;
         
         k_inverse = 3   ; // initial k is 1/3
         initialBlpPrice = _initialBlpPrice;
         transferEnabled = false;
         master = _master;
         emergencyPaused = false;
+
+        for (uint256 i = 0; i < _participantAddresses.length; i++) {
+            participantBalances[_participantAddresses[i]] = _participantBalances[i];
+        }
+        participantAddresses = _participantAddresses;
+
         // Transfer the initial JoyToken reserve from the creator to the contract
         _mint(msg.sender, _initialBlpMint);
-
-        for (uint256 i = 0; i < participantAddresses.length; i++) {
-            participantBalances[participantAddresses[i]] = participantBalances_[i];
-        }
     }
 
     modifier onlyOwnerOrMaster() {
@@ -91,6 +97,25 @@ contract BlpToken is ERC20, Ownable {
         uint256 price = (R0 * k_inverse) / (S0);
         k_inverse = (price * S0) / R1;
     }
+
+    function distributePlatformFees() public onlyOwnerOrMaster {
+        require(block.timestamp >= lastDistributionTime + 28 days, "Not time to distribute yet");
+        uint256 feesToDistribute = totalPlatformFees * 10 / 100;
+        uint256 totalParticipantBalances;
+
+        for (uint256 i = 0; i < participantAddresses.length; i++) {
+            totalParticipantBalances += participantBalances[participantAddresses[i]];
+        }
+
+        for (uint256 i = 0; i < participantAddresses.length; i++) {
+            uint256 participantShare = (participantBalances[participantAddresses[i]] * feesToDistribute) / totalParticipantBalances;
+            // Transfer the fee share to the participant
+        }
+
+        totalPlatformFees -= feesToDistribute;
+        lastDistributionTime = block.timestamp;
+    }
+
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
         super._beforeTokenTransfer(from, to, amount);
