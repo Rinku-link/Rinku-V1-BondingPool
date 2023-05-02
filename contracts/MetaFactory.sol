@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "./BlpToken.sol"; // Import the BLPToken contract interface
+import "./BlpReward.sol"; // Import the BlpReward contract interface
 
 contract MetaFactory is Ownable {
     using Create2 for bytes32;
@@ -112,7 +113,6 @@ contract MetaFactory is Ownable {
         // Deduct joy from each participant's contribution in the pool
         for (uint256 i = 0; i < numParticipants; i++) {
             address participantAddress = addressIndices[_poolId][i];
-            uint256 participantBalance = poolContributions[_poolId][participantAddress];
     
             require(poolContributions[_poolId][participantAddress] >= joyPerParticipant, "Insufficient joy in pool contribution");
             
@@ -137,19 +137,25 @@ contract MetaFactory is Ownable {
 
         pools[_poolId].status = PoolStatus.COMPLETED;
 
-        bytes32 salt = keccak256(abi.encodePacked(_poolId, pools[_poolId].name));
-        address blpToken = address(
-            Create2.deploy(0, salt, type(BlpToken).creationCode)
+        bytes32 salt1 = keccak256(abi.encodePacked(_poolId, pools[_poolId].name, "blpReward"));
+        address blpReward = address(
+            Create2.deploy(0, salt1, type(BlpReward).creationCode)
         );
+
+        bytes32 salt2 = keccak256(abi.encodePacked(_poolId, pools[_poolId].name));
+        address blpToken = address(
+            Create2.deploy(0, salt2, type(BlpToken).creationCode)
+        );
+
+        BlpReward(blpReward).initialize(blpToken, _participantAddresses, _participantBalances);
 
         BlpToken(blpToken).initialize(
             address(joyToken),
             _initialBlpPrice,
             _initialJoyReserve,
             _initialBlpMint,
-            _participantAddresses,
-            _participantBalances,
-            _master_address
+            _master_address,
+            blpReward
         );
     }
 }

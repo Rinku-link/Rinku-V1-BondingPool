@@ -1,8 +1,10 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./IBlpReward.sol";
 
 contract BlpToken is ERC20, Ownable {
     IERC20 public joyToken;
@@ -11,13 +13,10 @@ contract BlpToken is ERC20, Ownable {
     uint256 public initialReserve;
     bool public transferEnabled;
     address private master;
+    IBlpReward private blpReward;
     bool private emergencyPaused;
     bool public initialized;
-    mapping(address => uint256) private participantBalances;
-    address[] private participantAddresses;
-    uint256 public totalPlatformFees;
-    uint256 public lastDistributionTime;
-    mapping(address => uint256) private pendingPlatformFees;
+    uint256 public platformFeeIncentiveRatio;
 
     constructor() ERC20("BlpToken", "BLP") {
         initialized = false;
@@ -28,28 +27,22 @@ contract BlpToken is ERC20, Ownable {
         uint256 _initialBlpPrice,
         uint256 _initialJoyReserve,
         uint256 _initialBlpMint,
-        address[] memory _participantAddresses,
-        uint256[] memory _participantBalances,
-        address _master
+        address _master,
+        address _blpReward
     ) public {
         require(!initialized, "Already initialized");
         require(joyToken.transferFrom(msg.sender, address(this), _initialJoyReserve), "Initial JoyToken transfer failed");
-        require(participantAddresses.length == _participantAddresses.length, "Mismatch in participant addresses and balances length");
-
+        
         initialized = true;
-        lastDistributionTime = block.timestamp;
         joyToken = IERC20(_joyToken);
         
         k_inverse = 3   ; // initial k is 1/3
         initialBlpPrice = _initialBlpPrice;
         transferEnabled = false;
         master = _master;
+        blpReward = IBlpReward(_blpReward);
         emergencyPaused = false;
-
-        for (uint256 i = 0; i < _participantAddresses.length; i++) {
-            participantBalances[_participantAddresses[i]] = _participantBalances[i];
-        }
-        participantAddresses = _participantAddresses;
+        platformFeeIncentiveRatio = 100; // ten percent in terms of 1000 scale: 100/1000
 
         // Transfer the initial JoyToken reserve from the creator to the contract
         _mint(msg.sender, _initialBlpMint);
@@ -76,6 +69,12 @@ contract BlpToken is ERC20, Ownable {
         uint256 userAmount = blpAmount;
         joyToken.transferFrom(msg.sender, address(this), joyAmount);
         _mint(msg.sender, userAmount);
+
+        // platformFee handling logic
+        uint256 platformFeeParticipant = platformFee * (platformFeeIncentiveRatio/1000);
+        uint256 platformFeeMaster = platformFee - platformFeeParticipant;
+        joyToken.transferFrom(address(this), master, platformFeeMaster);
+        blpReward.depositPlatformFees(platformFeeParticipant);
     }
 
     function burnBlp(uint256 blpAmount) public {
@@ -88,6 +87,12 @@ contract BlpToken is ERC20, Ownable {
         uint256 userAmount = joyAmount - platformFee;
         _burn(msg.sender, blpAmount);
         joyToken.transfer(msg.sender, userAmount);
+
+        // platformFee handling logic
+        uint256 platformFeeParticipant = platformFee * (platformFeeIncentiveRatio/1000);
+        uint256 platformFeeMaster = platformFee - platformFeeParticipant;
+        joyToken.transferFrom(address(this), master, platformFeeMaster);
+        blpReward.depositPlatformFees(platformFeeParticipant);
     }
 
     function add_reserve(uint256 joyAmount) public onlyOwnerOrMaster {
@@ -101,31 +106,11 @@ contract BlpToken is ERC20, Ownable {
         k_inverse = (price * S0) / R1;
     }
 
-    function distributePlatformFees() public onlyOwnerOrMaster {
-        require(block.timestamp >= lastDistributionTime + 28 days, "Not time to distribute yet");
-        uint256 feesToDistribute = totalPlatformFees * 10 / 100;
-        uint256 totalParticipantBalances;
+    function withdrawJoyTokens(uint256 amount) external onlyOwnerOrMaster {
+        uint256 contractBalance = joyToken.balanceOf(address(this));
+        require(contractBalance >= amount, "Insufficient joy token balance");
 
-        for (uint256 i = 0; i < participantAddresses.length; i++) {
-            totalParticipantBalances += participantBalances[participantAddresses[i]];
-        }
-
-        for (uint256 i = 0; i < participantAddresses.length; i++) {
-            uint256 participantShare = (participantBalances[participantAddresses[i]] * feesToDistribute) / totalParticipantBalances;
-            // Transfer the fee share to the participant
-            pendingPlatformFees[participantAddresses[i]] += participantShare;
-        }
-
-        totalPlatformFees -= feesToDistribute;
-        lastDistributionTime = block.timestamp;
-    }
-
-    function claimPlatformFees() public {
-        uint256 feesToClaim = pendingPlatformFees[msg.sender];
-        require(feesToClaim > 0, "No platform fees to claim");
-
-        pendingPlatformFees[msg.sender] = 0;
-        require(joyToken.transfer(msg.sender, feesToClaim), "JoyToken transfer failed");
+        joyToken.transfer(msg.sender, amount);
     }
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override {
@@ -149,15 +134,7 @@ contract BlpToken is ERC20, Ownable {
         emergencyPaused = false;
     }
 
-    function getPendingPlatformFees() public view returns (uint256) {
-        return pendingPlatformFees[msg.sender];
-    }
-
-    function getParticipantBalance() public view returns (uint256) {
-        return participantBalances[msg.sender];
-    }
-
-    function getParticipantAddresses() public view onlyOwnerOrMaster returns (address[] memory) {
-        return participantAddresses;
+    function setPlatformFeeIncentiveRatio(uint256 _platformFeeIncentiveRatio) public onlyOwnerOrMaster {
+        platformFeeIncentiveRatio = _platformFeeIncentiveRatio;
     }
 }
