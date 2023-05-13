@@ -15,6 +15,7 @@ contract BlpToken is ERC20, Ownable {
     address private master;
     IBlpReward private blpReward;
     bool private emergencyPaused;
+    bool private finished;
     bool public initialized;
     uint256 public platformFeeIncentiveRatio;
 
@@ -42,6 +43,7 @@ contract BlpToken is ERC20, Ownable {
         master = _master;
         blpReward = IBlpReward(_blpReward);
         emergencyPaused = false;
+        finished = false;
         platformFeeIncentiveRatio = 100; // ten percent in terms of 1000 scale: 100/1000
 
         // Transfer the initial JoyToken reserve from the creator to the contract
@@ -60,6 +62,7 @@ contract BlpToken is ERC20, Ownable {
     function mintBlp(uint256 joyAmount) public {
         require(joyToken.balanceOf(msg.sender) >= joyAmount, "Insufficient Joy balance");
         require(!emergencyPaused, "Minting is paused due to emergency");
+        require(!finished, "Minting is paused due to it's already finished");
         // reduce platformfee first
         uint256 R0 = this.getJoyTokenBalance();
         uint256 S0 = this.getTotalSupply();
@@ -80,6 +83,7 @@ contract BlpToken is ERC20, Ownable {
     function burnBlp(uint256 blpAmount) public {
         require(balanceOf(msg.sender) >= blpAmount, "Insufficient BLP balance");
         require(!emergencyPaused, "Burning is paused due to emergency");
+        require(!finished, "Burning is paused due to it's already finished");
         uint256 R0 = this.getJoyTokenBalance();
         uint256 S0 = this.getTotalSupply();
         uint256 joyAmount = R0 * ((1 + blpAmount / S0)**(k_inverse) - 1);
@@ -132,6 +136,14 @@ contract BlpToken is ERC20, Ownable {
 
     function resumeFromEmergency() public onlyOwnerOrMaster {
         emergencyPaused = false;
+    }
+
+    function finishBlp() public onlyOwnerOrMaster {
+        finished = true;
+    }
+
+    function resumeBlp() public onlyOwnerOrMaster {
+        finished = false;
     }
 
     function setPlatformFeeIncentiveRatio(uint256 _platformFeeIncentiveRatio) public onlyOwnerOrMaster {
