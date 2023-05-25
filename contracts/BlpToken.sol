@@ -80,6 +80,8 @@ contract BlpToken is ERC20, Ownable {
         blpReward.depositPlatformFees(platformFeeParticipant);
     }
 
+    //master address mint without joy consumed
+
     function burnBlp(uint256 blpAmount) public {
         require(balanceOf(msg.sender) >= blpAmount, "Insufficient BLP balance");
         require(!emergencyPaused, "Burning is paused due to emergency");
