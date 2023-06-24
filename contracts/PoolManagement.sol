@@ -11,6 +11,8 @@ contract PoolManagement is Ownable {
         string name;
         PoolStatus status;
         uint256 balance;
+        uint256 minContribution;
+        uint256 maxContribution;
         bytes32 merkleRoot;
     }
 
@@ -21,8 +23,15 @@ contract PoolManagement is Ownable {
         joyToken = _joyToken;
     }
 
-    function createPool(string calldata _name, bytes32 _merkleRoot) external onlyOwner {
-        pools.push(Pool({name: _name, status: PoolStatus.FUNDING, balance: 0, merkleRoot: _merkleRoot}));
+    function createPool(string calldata _name, uint256 _minContribution, uint256 _maxContribution, bytes32 _merkleRoot) external onlyOwner {
+        pools.push(Pool({
+            name: _name, 
+            status: PoolStatus.FUNDING, 
+            balance: 0, 
+            minContribution: _minContribution, 
+            maxContribution: _maxContribution, 
+            merkleRoot: _merkleRoot
+        }));
     }
 
     function setMerkleRoot(uint256 _poolId, bytes32 _newMerkleRoot) external onlyOwner {
