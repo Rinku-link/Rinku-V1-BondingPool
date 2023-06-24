@@ -55,10 +55,6 @@ contract PoolManagement is Ownable {
         return pools.length;
     }
 
-    function joyToken() external view returns (IERC20) {
-        return joyToken;
-    }
-
     function updatePoolBalance(uint256 _poolId, int256 _delta) external onlyOwner {
         require(_poolId < pools.length, "Invalid pool ID");
         if (_delta < 0) {
