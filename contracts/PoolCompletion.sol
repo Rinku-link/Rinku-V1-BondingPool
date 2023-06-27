@@ -29,7 +29,7 @@ contract PoolCompletion is Ownable {
         require(status == PoolManagement.PoolStatus.FUNDING, "Pool is not in funding status");
         uint256 joyPerParticipant = details.initialJoyReserve / userContribution.getAddressIndicesLength(details.poolId);
         poolContributions.updateContributions(details, userContribution, joyPerParticipant);
-        poolManagement.setPoolStatus(details.poolId, PoolManagement.PoolStatus.COMPLETED);
+        poolManagement.setPoolStatus(details.poolId, "COMPLETED");
         (address blpReward, address blpToken) = poolDeployer.deployContracts(details);
         IERC20 joyToken = poolManagement.joyToken();
         BlpToken(blpToken).initialize(

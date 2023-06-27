@@ -39,9 +39,25 @@ contract PoolManagement is Ownable {
         pools[_poolId].merkleRoot = _newMerkleRoot;
     }
 
-    function setPoolStatus(uint256 _poolId, PoolStatus _status) external onlyOwner {
+    function setPoolStatus(uint256 _poolId, string memory _status) external onlyOwner {
         require(_poolId < pools.length, "Invalid pool ID");
-        pools[_poolId].status = _status;
+
+        PoolStatus status;
+        if (compareStrings(_status, "FUNDING")) {
+            status = PoolStatus.FUNDING;
+        } else if (compareStrings(_status, "COMPLETED")) {
+            status = PoolStatus.COMPLETED;
+        } else if (compareStrings(_status, "CANCELLED")) {
+            status = PoolStatus.CANCELLED;
+        } else {
+            revert("Invalid pool status");
+        }
+
+        pools[_poolId].status = status;
+    }
+
+    function compareStrings(string memory a, string memory b) internal pure returns (bool) {
+        return (keccak256(abi.encodePacked((a))) == keccak256(abi.encodePacked((b))));
     }
 
     // New getter functions
