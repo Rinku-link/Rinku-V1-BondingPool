@@ -27,13 +27,13 @@ contract UserContribution is Ownable {
         uint256 minContribution;
         uint256 maxContribution;
         bytes32 merkleRoot;
-        (, status, , merkleRoot) = poolManagement.getPool(_poolId);
-        
+        (, status, , minContribution, maxContribution, merkleRoot) = poolManagement.getPool(_poolId);
+
         require(_amount >= minContribution, "Contribution less than minimum allowed");
         require(_amount <= maxContribution, "Contribution more than maximum allowed");     
         require(
-            status == PoolManagement.PoolStatus.CANCELLED || status == PoolManagement.PoolStatus.COMPLETED,
-            "Pool is not cancelled or completed"
+            status == PoolManagement.PoolStatus.FUNDING,
+            "Pool is not in funding status"
         );
 
         // Verify the user's Merkle proof
@@ -69,7 +69,10 @@ contract UserContribution is Ownable {
         require(_poolId < poolManagement.poolsCount(), "Invalid pool ID");
 
         PoolManagement.PoolStatus status;
-        (, status, , ) = poolManagement.getPool(_poolId);
+        uint256 minContribution;
+        uint256 maxContribution;
+        bytes32 merkleRoot;
+        (, status, , minContribution, maxContribution, merkleRoot) = poolManagement.getPool(_poolId);
         
         require(
             status == PoolManagement.PoolStatus.CANCELLED,

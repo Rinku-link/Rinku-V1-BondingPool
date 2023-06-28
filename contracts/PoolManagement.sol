@@ -60,11 +60,28 @@ contract PoolManagement is Ownable {
         return (keccak256(abi.encodePacked((a))) == keccak256(abi.encodePacked((b))));
     }
 
-    // New getter functions
-    function getPool(uint256 _poolId) external view returns (string memory, PoolStatus, uint256, bytes32) {
+    function getPool(uint256 _poolId) 
+        external 
+        view 
+        returns (
+            string memory, 
+            PoolStatus, 
+            uint256, 
+            uint256, 
+            uint256, 
+            bytes32
+        ) 
+    {
         require(_poolId < pools.length, "Invalid pool ID");
         Pool memory pool = pools[_poolId];
-        return (pool.name, pool.status, pool.balance, pool.merkleRoot);
+        return (
+            pool.name, 
+            pool.status, 
+            pool.balance, 
+            pool.minContribution, 
+            pool.maxContribution, 
+            pool.merkleRoot
+        );
     }
 
     function poolsCount() external view returns (uint256) {

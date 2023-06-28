@@ -25,7 +25,11 @@ contract PoolCompletion is Ownable {
         require(details.poolId < poolManagement.poolsCount(), "Invalid pool ID");
         // Fetch status from poolManagement
         PoolManagement.PoolStatus status;
-        (, status, , ) = poolManagement.getPool(details.poolId);
+        uint256 minContribution;
+        uint256 maxContribution;
+        bytes32 merkleRoot;
+        (, status, , minContribution, maxContribution, merkleRoot) = poolManagement.getPool(details.poolId);
+        
         require(status == PoolManagement.PoolStatus.FUNDING, "Pool is not in funding status");
         uint256 joyPerParticipant = details.initialJoyReserve / userContribution.getAddressIndicesLength(details.poolId);
         poolContributions.updateContributions(details, userContribution, joyPerParticipant);
