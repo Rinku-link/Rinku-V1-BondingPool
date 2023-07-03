@@ -2,6 +2,8 @@ require('dotenv').config();
 const hre = require("hardhat");
 const fs = require("fs");
 const ethers = hre.ethers;
+const { MerkleTree } = require('merkletreejs');
+const keccak256 = require('keccak256');
 
 async function main() {
     const [deployer] = await ethers.getSigners();
@@ -13,15 +15,27 @@ async function main() {
     const poolName = "TestPool";
     const minContribution = ethers.utils.parseEther("0.1"); // 0.1 JOY
     const maxContribution = ethers.utils.parseEther("10"); // 10 JOY
-    // Convert deployer address to bytes32
-    let addressBytes = ethers.utils.zeroPad(deployer.address, 32);
+    
+    let deployerAddress = deployer.address; // Assuming 'deployer' object exists
+    let additionalAddress = '0x17F6AD8Ef982297579C203069C1DbfFE4348c372';
 
-    // Generate Merkle root from deployer's address
-    let merkleRoot = ethers.utils.keccak256(addressBytes);
+    // Generate leaves from the two addresses
+    let addresses = [deployerAddress, additionalAddress];
+    let leaves = addresses.map(address => Buffer.from(keccak256(address), 'hex'));
+
+    // Create the Merkle Tree
+    let merkleTree = new MerkleTree(leaves, keccak256, { sort: true });
+
+    // Get the Merkle root
+    let merkleRoot = merkleTree.getHexRoot();
+
+    // Generate the Merkle proof for the deployer's address
+    let deployerLeaf = Buffer.from(keccak256(deployerAddress), 'hex');
+    let merkleProof = merkleTree.getHexProof(deployerLeaf);
 
     await PoolManagement.connect(deployer).createPool(poolName, minContribution, maxContribution, merkleRoot);
 
-    // Get pool count
+    // Get pool co  unt
     const poolCount = await PoolManagement.connect(deployer).poolsCount();
     console.log(`Pool count is ${poolCount.toString()}`);
     if (poolCount < 1) {
@@ -31,10 +45,7 @@ async function main() {
     // Contribute to pool
     const contributionAmount = ethers.utils.parseEther("1"); // 1 JOY
 
-    // Use the same addressBytes as a placeholder for the Merkle proof
-    const merkleProof = [addressBytes];
-
-    await UserContribution.connect(deployer).contributeToPool(0, contributionAmount, merkleProof);
+    await UserContribution.connect(deployer).contributeToPool(poolCount-1, contributionAmount, merkleProof);
 
     // Check contribution
     const contribution = await UserContribution.connect(deployer).getPoolContribution(0, deployer.address);
