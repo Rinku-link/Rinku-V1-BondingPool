@@ -12,6 +12,7 @@ contract CrowdContribution is Ownable {
         uint256 amount;
     }
 
+    bool public initialized = false; // Add this line
     PoolStatus public status;
     IERC20 public joyToken;
     uint256 public min;
@@ -21,20 +22,23 @@ contract CrowdContribution is Ownable {
     uint256 public totalContribution;
     Contribution[] public contributions;
 
-    constructor(
+    function initialize(
         IERC20 _joyToken,
         uint256 _min,
         uint256 _max,
         uint256 _hardcap,
         bytes32 _root
-    ) {
+    ) public {
+        require(!initialized, "Contract has already been initialized"); // Add this line
+        initialized = true; // Add this line
+
         joyToken = _joyToken;
         min = _min;
         max = _max;
         hardcap = _hardcap;
         root = _root;
-        status = PoolStatus.FUNDING;
         totalContribution = 0;
+        status = PoolStatus.FUNDING;
     }
 
     function contribute(uint256 _amount) external {
