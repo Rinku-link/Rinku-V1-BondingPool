@@ -1,2 +1,2 @@
-# BondingPool solifity project for Rinku.link
+# Solidity Contracts for Rinku.link
 
