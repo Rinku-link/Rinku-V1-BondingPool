@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol"; // Import the MerkleProof library
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 contract CrowdContribution is Ownable {
     enum PoolStatus { FUNDING, COMPLETED, CANCELLED }
@@ -19,16 +19,17 @@ contract CrowdContribution is Ownable {
     uint256 public min;
     uint256 public max;
     uint256 public hardcap;
-    bytes32 public root; // The root of the Merkle Tree
+    bytes32 public root;
     uint256 public totalContribution;
     Contribution[] public contributions;
+    mapping(address => bool) public hasContributed; // To keep track of addresses that have already contributed
 
     function initialize(
         IERC20 _joyToken,
         uint256 _min,
         uint256 _max,
         uint256 _hardcap,
-        bytes32 _root // Add the root of the Merkle Tree as a parameter
+        bytes32 _root
     ) public {
         require(!initialized, "Contract has already been initialized");
         initialized = true;
@@ -37,19 +38,23 @@ contract CrowdContribution is Ownable {
         min = _min;
         max = _max;
         hardcap = _hardcap;
-        root = _root; // Initialize the root of the Merkle Tree
+        root = _root;
         totalContribution = 0;
         status = PoolStatus.FUNDING;
     }
 
     function contribute(uint256 _amount, bytes32[] calldata _merkleProof) external {
+        require(!hasContributed[msg.sender], "Address has already contributed");
         require(status == PoolStatus.FUNDING, "Pool is not in funding status");
         require(_amount >= min && _amount <= max, "Contribution amount is out of range");
         require(joyToken.balanceOf(msg.sender) >= _amount, "Insufficient Joy balance");
 
-        // Verify the Merkle proof
+        // Verify the user's Merkle proof
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
-        require(MerkleProof.verify(_merkleProof, root, leaf), "Not in the whitelist");
+        require(
+            MerkleProof.verify(_merkleProof, root, leaf),
+            "Not in the whitelist"
+        );
 
         totalContribution += _amount;
         contributions.push(Contribution({contributor: msg.sender, amount: _amount}));
@@ -59,6 +64,8 @@ contract CrowdContribution is Ownable {
         if (totalContribution >= hardcap) {
             status = PoolStatus.COMPLETED;
         }
+
+        hasContributed[msg.sender] = true; // Mark address as having contributed
     }
 
     function setPoolStatus(PoolStatus _status) external onlyOwner {
