@@ -1,38 +1,40 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
-import "./CrowdContribution.sol"; // Import the CrowdContribution contract
+import "./CrowdContribution.sol"; // Import the CrowdContribution contract interface
 
 contract MetaFactory is Ownable {
-    struct Pool {
-        string name;
-        CrowdContribution poolInstance;
-    }
+    using Create2 for bytes32;
 
-    Pool[] public pools;
+    IERC20 public joyToken;
+    address[] public pools;
+
+    constructor(IERC20 _joyToken) {
+        joyToken = _joyToken;
+    }
 
     function createPool(
         string calldata _name,
-        IERC20 _joyToken,
         uint256 _min,
         uint256 _max,
         uint256 _hardcap,
-        bytes32 _root,
-        bytes32 _salt
+        bytes32 _root // The root of the Merkle Tree
     ) external onlyOwner {
-        bytes memory bytecode = type(CrowdContribution).creationCode;
-        address poolAddress = Create2.deploy(0, _salt, bytecode);
-        CrowdContribution(poolAddress).initialize(_joyToken, _min, _max, _hardcap, _root);
-        pools.push(Pool({name: _name, poolInstance: CrowdContribution(poolAddress)}));
-    }
+        bytes32 salt = keccak256(abi.encodePacked(_name));
+        address poolAddress = Create2.deploy(0, salt, type(CrowdContribution).creationCode);
+        CrowdContribution(poolAddress).initialize(joyToken, _min, _max, _hardcap, _root); // Initialize the CrowdContribution contract
 
-    function getPool(uint256 _poolId) external view returns (Pool memory) {
-        return pools[_poolId];
+        pools.push(poolAddress);
     }
 
     function getPoolsCount() external view returns (uint256) {
         return pools.length;
+    }
+
+    function getPool(uint256 _index) external view returns (address) {
+        return pools[_index];
     }
 }
