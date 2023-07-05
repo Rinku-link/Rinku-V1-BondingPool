@@ -22,7 +22,7 @@ contract CrowdContribution is Ownable {
     bytes32 public root;
     uint256 public totalContribution;
     Contribution[] public contributions;
-    mapping(address => bool) public hasContributed; // To keep track of addresses that have already contributed
+    mapping(address => bool) public hasContributed; 
 
     function initialize(
         IERC20 _joyToken,
@@ -65,7 +65,7 @@ contract CrowdContribution is Ownable {
             status = PoolStatus.COMPLETED;
         }
 
-        hasContributed[msg.sender] = true; // Mark address as having contributed
+        hasContributed[msg.sender] = true; 
     }
 
     function setPoolStatus(PoolStatus _status) external onlyOwner {
